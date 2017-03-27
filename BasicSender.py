@@ -1,6 +1,6 @@
-import sys
-import socket
 import random
+import socket
+import sys
 
 import Checksum
 
@@ -33,7 +33,7 @@ class BasicSender(object):
     def send(self, message, address=None):
         if address is None:
             address = (self.dest,self.dport)
-        self.sock.sendto(message, address)
+        self.sock.sendto(message.encode(), address)
 
     # Prepares a packet
     def make_packet(self,msg_type,seqno,msg):
@@ -43,10 +43,11 @@ class BasicSender(object):
         return packet
 
     def split_packet(self, message):
-        pieces = message.split('|')
-        msg_type, seqno = pieces[0:2] # first two elements always treated as msg type and seqno
-        checksum = pieces[-1] # last is always treated as checksum
-        data = '|'.join(pieces[2:-1]) # everything in between is considered data
+        print("Splitting message")
+        pieces = message.decode().split('|')
+        msg_type, seqno = pieces[0:2]  # first two elements always treated as msg type and seqno
+        checksum = pieces[-1]  # last is always treated as checksum
+        data = '|'.join(pieces[2:-1])  # everything in between is considered data
         return msg_type, seqno, data, checksum
 
     # Main sending loop.
