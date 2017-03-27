@@ -1,8 +1,9 @@
-import sys
 import getopt
+import sys
+from random import randint
 
-import Checksum
 import BasicSender
+from .Checksum import validate_checksum, generate_checksum
 
 '''
 This is a skeleton sender class. Create a fantastic transport protocol here.
@@ -10,7 +11,8 @@ This is a skeleton sender class. Create a fantastic transport protocol here.
 class Sender(BasicSender.BasicSender):
     # Main sending loop.
     def start(self):
-        raise NotImplementedError
+
+        initialSeqNum = randint(0, 5000)
 
 '''
 This will be run if you run this script from the command line. You should not

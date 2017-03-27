@@ -1,9 +1,10 @@
-import socket
 import getopt
+import socket
 import sys
 import time
 
 import Checksum
+
 
 class Connection():
     def __init__(self,host,port,start_seq,debug=False):
@@ -30,7 +31,7 @@ class Connection():
                     break # when we find out of order seqno, quit and move on
 
         if self.debug:
-            print "next seqno should be %d" % (self.current_seqno+1)
+            print("next seqno should be %d" % (self.current_seqno + 1))
 
         # note: we return the /next/ sequence number we're expecting
         return self.current_seqno+1, res_data
@@ -71,11 +72,11 @@ class Receiver():
                 except:
                     raise ValueError
                 if debug:
-                    print "%s %d %s %s" % (msg_type, seqno, data, checksum)
+                    print("%s %d %s %s" % (msg_type, seqno, data, checksum))
                 if Checksum.validate_checksum(message):
                     self.MESSAGE_HANDLER.get(msg_type,self._handle_other)(seqno, data, address)
                 elif self.debug:
-                    print "checksum failed: %s" % message
+                    print("checksum failed: %s" % message)
 
                 if time.time() - self.last_cleanup > self.timeout:
                     self._cleanup()
@@ -83,9 +84,9 @@ class Receiver():
                 self._cleanup()
             except (KeyboardInterrupt, SystemExit):
                 exit()
-            except ValueError, e:
+            except ValueError as e:
                 if self.debug:
-                    print e
+                    print(e)
                 pass # ignore
 
     # waits until packet is received to return
@@ -111,7 +112,7 @@ class Receiver():
         ackno, res_data = conn.ack(seqno,data)
         for l in res_data:
             if self.debug:
-                print data
+                print(data)
             conn.record(l)
         self._send_ack(ackno, address)
 
@@ -122,7 +123,7 @@ class Receiver():
             ackno,res_data = conn.ack(seqno,data)
             for l in res_data:
                 if self.debug:
-                    print l
+                    print(l)
                 conn.record(l)
             self._send_ack(ackno, address)
 
@@ -133,7 +134,7 @@ class Receiver():
             ackno, res_data = conn.ack(seqno,data)
             for l in res_data:
                 if self.debug:
-                    print l
+                    print(l)
                 conn.record(l)
             self._send_ack(ackno, address)
 
@@ -154,24 +155,24 @@ class Receiver():
 
     def _cleanup(self):
         if self.debug:
-            print "clean up time"
+            print("clean up time")
         now = time.time()
         for address in self.connections.keys():
             conn = self.connections[address]
             if now - conn.updated > self.timeout:
                 if self.debug:
-                    print "killed connection to %s (%.2f old)" % (address, now - conn.updated)
+                    print("killed connection to %s (%.2f old)" % (address, now - conn.updated))
                 conn.end()
                 del self.connections[address]
         self.last_cleanup = now
 
 if __name__ == "__main__":
     def usage():
-        print "BEARS-TP Receiver"
-        print "-p PORT | --port=PORT The listen port, defaults to 33122"
-        print "-t TIMEOUT | --timeout=TIMEOUT Receiver timeout in seconds"
-        print "-d | --debug Print debug messages"
-        print "-h | --help Print this usage message"
+        print("BEARS-TP Receiver")
+        print("-p PORT | --port=PORT The listen port, defaults to 33122")
+        print("-t TIMEOUT | --timeout=TIMEOUT Receiver timeout in seconds")
+        print("-d | --debug Print debug messages")
+        print("-h | --help Print this usage message")
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],
@@ -192,7 +193,7 @@ if __name__ == "__main__":
         elif o in ("-d", "--debug="):
             debug = True
         else:
-            print usage()
+            print(usage())
             exit()
     r = Receiver(port, debug, timeout)
     r.start()
