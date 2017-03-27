@@ -3,7 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="1f21349f-47d5-4745-8660-c43a2ea6c865" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/Sender.py" afterPath="$PROJECT_DIR$/Sender.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -26,7 +25,7 @@
         <entry file="file://$PROJECT_DIR$/Sender.py">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="272">
-              <caret line="46" column="32" lean-forward="true" selection-start-line="46" selection-start-column="32" selection-end-line="46" selection-end-column="32" />
+              <caret line="47" column="32" lean-forward="true" selection-start-line="47" selection-start-column="32" selection-end-line="47" selection-end-column="32" />
               <folding>
                 <element signature="e#0#13#0" expanded="true" />
               </folding>
@@ -374,7 +373,14 @@
       <option name="project" value="LOCAL" />
       <updated>1490588613742</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Frame Packet Handlers in Sender&#10;&#10;Frame the packet handlers to handle the responses of the Receiver when a&#10;message is sent back to the Sender (almost always a simple ack that must&#10;be checked to validate which packets to send).">
+      <created>1490657372866</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1490657372866</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="ToolWindowManager">
@@ -439,7 +445,8 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial Commit&#10;All the files as well as branches." />
     <MESSAGE value="Initial Commit&#10;&#10;All the files as well as branches. Fixed the Sender.py." />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial Commit&#10;&#10;All the files as well as branches. Fixed the Sender.py." />
+    <MESSAGE value="Frame Packet Handlers in Sender&#10;&#10;Frame the packet handlers to handle the responses of the Receiver when a&#10;message is sent back to the Sender (almost always a simple ack that must&#10;be checked to validate which packets to send)." />
+    <option name="LAST_COMMIT_MESSAGE" value="Frame Packet Handlers in Sender&#10;&#10;Frame the packet handlers to handle the responses of the Receiver when a&#10;message is sent back to the Sender (almost always a simple ack that must&#10;be checked to validate which packets to send)." />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -784,7 +791,7 @@
     <entry file="file://$PROJECT_DIR$/Sender.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="272">
-          <caret line="46" column="32" lean-forward="true" selection-start-line="46" selection-start-column="32" selection-end-line="46" selection-end-column="32" />
+          <caret line="47" column="32" lean-forward="true" selection-start-line="47" selection-start-column="32" selection-end-line="47" selection-end-column="32" />
           <folding>
             <element signature="e#0#13#0" expanded="true" />
           </folding>
