@@ -1,16 +1,39 @@
-import sys
 import getopt
+import sys
+from random import randint
 
-import Checksum
 import BasicSender
 
-'''
-This is a skeleton sender class. Create a fantastic transport protocol here.
-'''
+
 class Sender(BasicSender.BasicSender):
+
+    def __init__(self, dest, port, filename, listenport=33122, debug=False, timeout=10):
+        super().__init__(dest, port, filename, debug)
+        self.rtimeout = timeout
+
     # Main sending loop.
     def start(self):
-        raise NotImplementedError
+        while True:
+            try:
+                # messages = self.load_file(filename)
+                self.send(self.make_packet('start',randint(0, 4096),b'Test message!'),(self.dest, self.dport))
+                print("Sent message. Waiting for reply...")
+                msg = self.receive(self.rtimeout)
+                if msg:
+                    msg_type, seqno, data, chksum  = self.split_packet(msg)
+                    print("msg_type: " + msg_type + "  seqno: " + seqno + "  data: " + data + "  chksum: " + chksum)
+            except (KeyboardInterrupt, SystemExit):
+                exit()
+            except ValueError as e:
+                if self.debug:
+                    print(e)
+                pass # ignore
+
+    def load_file(self,fname):
+        # Read in a file and split the input file into data chunks and return data chunks.
+        pass
+
+
 
 '''
 This will be run if you run this script from the command line. You should not

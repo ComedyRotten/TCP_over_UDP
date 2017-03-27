@@ -1,9 +1,10 @@
-import socket
 import getopt
+import socket
 import sys
 import time
 
 import Checksum
+
 
 class Connection():
     def __init__(self,host,port,start_seq,debug=False):
@@ -30,7 +31,7 @@ class Connection():
                     break # when we find out of order seqno, quit and move on
 
         if self.debug:
-            print "next seqno should be %d" % (self.current_seqno+1)
+            print("next seqno should be %d" % (self.current_seqno + 1))
 
         # note: we return the /next/ sequence number we're expecting
         return self.current_seqno+1, res_data
@@ -64,28 +65,34 @@ class Receiver():
     def start(self):
         while True:
             try:
+                # Receive the message and where it came from
                 message, address = self.receive()
+                # Split the message up into it's appropriate parts
                 msg_type, seqno, data, checksum = self._split_message(message)
+                # Try and handle the message depending on it's type
                 try:
                     seqno = int(seqno)
                 except:
                     raise ValueError
-                if debug:
-                    print "%s %d %s %s" % (msg_type, seqno, data, checksum)
+                if not debug:
+                    print('Split message: {0} {1} {2} {3}'.format(msg_type, seqno, data, checksum))
                 if Checksum.validate_checksum(message):
+                    # If the checksum checks out, handle the message using one of the following methods defined by the
+                    # MESSAGE_HANDLER dictionary.
                     self.MESSAGE_HANDLER.get(msg_type,self._handle_other)(seqno, data, address)
                 elif self.debug:
-                    print "checksum failed: %s" % message
+                    print("checksum failed: %s" % message)
 
+                # If the timeout happens, do a cleanup.
                 if time.time() - self.last_cleanup > self.timeout:
                     self._cleanup()
             except socket.timeout:
                 self._cleanup()
             except (KeyboardInterrupt, SystemExit):
                 exit()
-            except ValueError, e:
+            except ValueError as e:
                 if self.debug:
-                    print e
+                    print(e)
                 pass # ignore
 
     # waits until packet is received to return
@@ -95,58 +102,65 @@ class Receiver():
     # sends a message to the specified address. Addresses are in the format:
     #   (IP address, port number)
     def send(self, message, address):
-        self.s.sendto(message, address)
+        self.s.sendto(message.encode(), address)
 
     # this sends an ack message to address with specified seqno
     def _send_ack(self, seqno, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         m = "ack|%d|" % seqno
         checksum = Checksum.generate_checksum(m)
         message = "%s%s" % (m, checksum)
         self.send(message, address)
 
     def _handle_start(self, seqno, data, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if not address in self.connections:
             self.connections[address] = Connection(address[0],address[1],seqno,self.debug)
         conn = self.connections[address]
         ackno, res_data = conn.ack(seqno,data)
         for l in res_data:
             if self.debug:
-                print data
+                print(data)
             conn.record(l)
         self._send_ack(ackno, address)
 
     # ignore packets from uninitiated connections
     def _handle_data(self, seqno, data, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if address in self.connections:
             conn = self.connections[address]
             ackno,res_data = conn.ack(seqno,data)
             for l in res_data:
                 if self.debug:
-                    print l
+                    print(l)
                 conn.record(l)
             self._send_ack(ackno, address)
 
     # handle end packets
     def _handle_end(self, seqno, data, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if address in self.connections:
             conn = self.connections[address]
             ackno, res_data = conn.ack(seqno,data)
             for l in res_data:
                 if self.debug:
-                    print l
+                    print(l)
                 conn.record(l)
             self._send_ack(ackno, address)
 
     # I'll do the ack-ing here, buddy
     def _handle_ack(self, seqno, data, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     # handler for packets with unrecognized type
     def _handle_other(self, seqno, data, address):
+        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     def _split_message(self, message):
-        pieces = message.split('|')
+        print("Splitting message")
+        pieces = message.decode().split('|')
         msg_type, seqno = pieces[0:2] # first two elements always treated as msg type and seqno
         checksum = pieces[-1] # last is always treated as checksum
         data = '|'.join(pieces[2:-1]) # everything in between is considered data
@@ -154,24 +168,24 @@ class Receiver():
 
     def _cleanup(self):
         if self.debug:
-            print "clean up time"
+            print("clean up time")
         now = time.time()
         for address in self.connections.keys():
             conn = self.connections[address]
             if now - conn.updated > self.timeout:
                 if self.debug:
-                    print "killed connection to %s (%.2f old)" % (address, now - conn.updated)
+                    print("killed connection to %s (%.2f old)" % (address, now - conn.updated))
                 conn.end()
                 del self.connections[address]
         self.last_cleanup = now
 
 if __name__ == "__main__":
     def usage():
-        print "BEARS-TP Receiver"
-        print "-p PORT | --port=PORT The listen port, defaults to 33122"
-        print "-t TIMEOUT | --timeout=TIMEOUT Receiver timeout in seconds"
-        print "-d | --debug Print debug messages"
-        print "-h | --help Print this usage message"
+        print("BEARS-TP Receiver")
+        print("-p PORT | --port=PORT The listen port, defaults to 33122")
+        print("-t TIMEOUT | --timeout=TIMEOUT Receiver timeout in seconds")
+        print("-d | --debug Print debug messages")
+        print("-h | --help Print this usage message")
 
     try:
         opts, args = getopt.getopt(sys.argv[1:],
@@ -192,7 +206,7 @@ if __name__ == "__main__":
         elif o in ("-d", "--debug="):
             debug = True
         else:
-            print usage()
+            print(usage())
             exit()
     r = Receiver(port, debug, timeout)
     r.start()
