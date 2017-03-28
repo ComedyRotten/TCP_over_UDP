@@ -26,14 +26,26 @@ class Sender(BasicSender.BasicSender):
         The above could be implemented as a 2D array: x=data y=acknowledged flag
         The 2D array could also have a list that pulls from the 2D array that acts as the sliding window.
     4. When all data is sent and acknowledged, send an 'end' packet and close the connection.
+    
+    Message format:
+    The message is 1472 bytes divided up into the following:
+    5 bytes: msgtype (to accomodate 'start' flag)
+    4 bytes: seqno
+    1458 bytes: message/data
+    2 bytes: checksum
+    3 bytes: packet delimiters '|'
     '''
     def start(self):
+        # Send initial 'start' packet to the receiver
+        # The initial seqno is set to a random a 16-bit int (2 bytes).
+        self.current_seqno = randint(0, 65535)
+
         # load the file into the two-dimensional list
         # Initialize another 2D list to act as the sliding window.
         # May be worth implementing the resilient Receiver that accepts packets out of order (fairly easy?)
+        self.msg_queue, self.msg_window = self.load_file(filename, self.current_seqno)
 
-        # Send initial 'start' packet to the receiver
-        self.send(self.make_packet('start', randint(0, 4096), b'Start message!'), (self.dest, self.dport))
+        self.send(self.make_packet('start', self.msg_queue[0][1], self.msg_queue[0][0]), (self.dest, self.dport))
 
         # Main sending loop.
         while True:
@@ -55,13 +67,23 @@ class Sender(BasicSender.BasicSender):
             elif self.debug:
                 print("checksum failed: %s" % message)
 
-    def load_file(self,fname):
+    def load_file(self, fname, sn):
         # Read in a file and split the input file into data chunks and return data chunks.
-        pass
+        # The file is converted to a bytestream that reads in the file, either reading in only what is necessary and
+        # putting that into the msg_window, or reading in the entire file into a 2D list where each element represents
+        # a (data (bytearray), seqno (int), acknowledged (bool)) data pair. The seqno is set here to the initial value
+        # and incremented by the number of bytes in the current packet.
+        current_seqno = sn
+        msg_queue = ((b'Hello World...',current_seqno + sys.getsizeof(b'Hello World...'), False))
+        current_seqno += sys.getsizeof(b'Hello World...')
+        msg_window = ()
+        return msg_queue, msg_window
 
-    # I'll do the ack-ing here, buddy
+    # Handle an 'ack' reply from the server
     def _handle_ack(self, seqno, data, address):
         print("start received: seqno: {0}  address: {1}".format(seqno, address))
+        # Check the seqno to verify whether the packet is the current packet
+
         pass
 
     # handler for packets with unrecognized type
