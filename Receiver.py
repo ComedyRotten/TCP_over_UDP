@@ -170,7 +170,7 @@ class Receiver():
         if self.debug:
             print("clean up time")
         now = time.time()
-        for address in self.connections.keys():
+        for address in list(self.connections):
             conn = self.connections[address]
             if now - conn.updated > self.timeout:
                 if self.debug:
