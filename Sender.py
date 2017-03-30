@@ -1,5 +1,6 @@
 import getopt
 import sys
+import os
 from random import randint
 
 import BasicSender
@@ -19,14 +20,14 @@ class Sender(BasicSender.BasicSender):
     Main sender loop:
     1. Send a 'start' message to the specified receiver address that contains the following:
         msgtype='start' seqno=N data='' chksum=CHECKSUM
-        where N = random initial integer within given range and CHECKSUM is the calculated checksum for the entire 
+        where N = random initial integer within given range and CHECKSUM is the calculated checksum for the entire
         message packet (minus the checksum itself).
     2. Wait for an 'ack' message to return and verify that the host received the 'start'.
     3. Continue sending data using the 'data' message types; mark each as successfully sent  when the ack is returned.
         The above could be implemented as a 2D array: x=data y=acknowledged flag
         The 2D array could also have a list that pulls from the 2D array that acts as the sliding window.
     4. When all data is sent and acknowledged, send an 'end' packet and close the connection.
-    
+
     Message format:
     The message is 1472 bytes divided up into the following:
     5 bytes: msgtype (to accomodate 'start' flag)
@@ -41,7 +42,8 @@ class Sender(BasicSender.BasicSender):
         # load the file into the two-dimensional list
         # Initialize another 2D list to act as the sliding window.
         # May be worth implementing the resilient Receiver that accepts packets out of order (fairly easy?)
-        self.load_file(filename, randint(0, 65535))
+        self.filestream = open(filename, 'rb')
+        self.load_file(0)
 
         # Send initial start message
         self.send(self.make_packet('start',self.msg_window[0][0],self.msg_window[0][1]), (self.dest, self.dport))
@@ -77,21 +79,37 @@ class Sender(BasicSender.BasicSender):
             except:
                 pass
 
-    def load_file(self, fname, sn):
+    def load_file(self, sn):
         # Read in a file and split the input file into data chunks and return data chunks.
         # The file is converted to a bytestream that reads in the file, either reading in only what is necessary and
         # putting that into the msg_window, or reading in the entire file into a 2D list where each element represents
         # a (data (bytearray), seqno (int), sent (bool)) data pair. The seqno is set here to the initial value
         # and incremented by the number of bytes in the current packet.
         current_seqno = sn
+        self.filestream.seek(current_seqno*1458)
         self.msg_window = [
-            [current_seqno, b'First bits',False],
-            [current_seqno + 1, b'Second bits',False],
-            [current_seqno + 2, b'Third bits',False],
-            [current_seqno + 3, b'Fourth bits',False],
-            [current_seqno + 5, b'Fifth bits',False]]
+            [current_seqno, self.filestream.read(1458),False],
+            [current_seqno + 1, self.filestream.read(1458),False],
+            [current_seqno + 2, self.filestream.read(1458),False],
+            [current_seqno + 3, self.filestream.read(1458),False],
+            [current_seqno + 4, self.filestream.read(1458),False]]
 
-    def update_sliding_window(self):
+    def update_sliding_window(self, sn):
+        current_seqno = sn
+        self.filestream.seek(current_seqno*1458)
+        next_packet = self.filestream.read(1458)
+        print(os.path.getsize(filename))
+        print(os.path.getsize(filename) - current_seqno*1458)
+        if (os.path.getsize(filename) - current_seqno*1458) < 1458:
+            self.msg_window = [
+                [current_seqno, next_packet,False]]
+        else:
+            self.msg_window = [
+                [current_seqno, next_packet,False],
+                [current_seqno + 1, self.filestream.read(1458),False],
+                [current_seqno + 2, self.filestream.read(1458),False],
+                [current_seqno + 3, self.filestream.read(1458),False],
+                [current_seqno + 4, self.filestream.read(1458),False]]
         pass
 
     def send_next_data(self):
@@ -126,7 +144,7 @@ class Sender(BasicSender.BasicSender):
                 # Remove the packet from the sliding window list
                 del self.msg_window[temp_index]
                 # Refresh the sliding window
-                self.update_sliding_window()
+                self.update_sliding_window(seqno)
 
             #Send the next packet of data!
             self.send_next_data()
