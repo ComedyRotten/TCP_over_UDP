@@ -1,8 +1,10 @@
 import getopt
 import sys
+import os
 from random import randint
 
 import BasicSender
+import Checksum
 
 
 class Sender(BasicSender.BasicSender):
@@ -10,27 +12,150 @@ class Sender(BasicSender.BasicSender):
     def __init__(self, dest, port, filename, listenport=33122, debug=False, timeout=10):
         super().__init__(dest, port, filename, debug)
         self.rtimeout = timeout
+        self.MESSAGE_HANDLER = {
+            'ack': self._handle_ack
+        }
 
-    # Main sending loop.
+    '''
+    Main sender loop:
+    1. Send a 'start' message to the specified receiver address that contains the following:
+        msgtype='start' seqno=N data='' chksum=CHECKSUM
+        where N = random initial integer within given range and CHECKSUM is the calculated checksum for the entire
+        message packet (minus the checksum itself).
+    2. Wait for an 'ack' message to return and verify that the host received the 'start'.
+    3. Continue sending data using the 'data' message types; mark each as successfully sent  when the ack is returned.
+        The above could be implemented as a 2D array: x=data y=acknowledged flag
+        The 2D array could also have a list that pulls from the 2D array that acts as the sliding window.
+    4. When all data is sent and acknowledged, send an 'end' packet and close the connection.
+
+    Message format:
+    The message is 1472 bytes divided up into the following:
+    5 bytes: msgtype (to accomodate 'start' flag)
+    4 bytes: seqno
+    1458 bytes: message/data
+    2 bytes: checksum
+    3 bytes: packet delimiters '|'
+    '''
     def start(self):
+        # The initial seqno is set to a random a 16-bit int (2 bytes).
+
+        # load the file into the two-dimensional list
+        # Initialize another 2D list to act as the sliding window.
+        # May be worth implementing the resilient Receiver that accepts packets out of order (fairly easy?)
+        self.filestream = open(filename, 'rb')
+        self.load_file(0)
+
+        # Send initial start message
+        self.send(self.make_packet('start',self.msg_window[0][0],self.msg_window[0][1]), (self.dest, self.dport))
+        self.msg_window[0][2] = True
+
+        # Main sending loop.
         while True:
             try:
-                # messages = self.load_file(filename)
-                self.send(self.make_packet('start',randint(0, 4096),b'Test message!'),(self.dest, self.dport))
-                print("Sent message. Waiting for reply...")
-                msg = self.receive(self.rtimeout)
-                if msg:
-                    msg_type, seqno, data, chksum  = self.split_packet(msg)
-                    print("msg_type: " + msg_type + "  seqno: " + seqno + "  data: " + data + "  chksum: " + chksum)
+                # Receive the message and where it came from
+                message = self.receive(self.rtimeout)
+
+                # Split the message up into it's appropriate parts
+                msg_type, seqno, data, checksum = self.split_packet(message)
+                # Try and handle the message depending on it's type
+                try:
+                    seqno = int(seqno)
+                except:
+                    raise ValueError
+                if not debug:
+                    print('Split message: {0} {1} {2} {3}'.format(msg_type, seqno, data, checksum))
+                if Checksum.validate_checksum(message):
+                    # If the checksum checks out, handle the message using one of the following methods defined by the
+                    # MESSAGE_HANDLER dictionary.
+                    self.MESSAGE_HANDLER.get(msg_type, self._handle_other)(seqno, data)
+                elif self.debug:
+                    print("checksum failed: %s" % message)
             except (KeyboardInterrupt, SystemExit):
                 exit()
             except ValueError as e:
                 if self.debug:
                     print(e)
                 pass # ignore
+            except:
+                pass
 
-    def load_file(self,fname):
+    def load_file(self, sn):
         # Read in a file and split the input file into data chunks and return data chunks.
+        # The file is converted to a bytestream that reads in the file, either reading in only what is necessary and
+        # putting that into the msg_window, or reading in the entire file into a 2D list where each element represents
+        # a (data (bytearray), seqno (int), sent (bool)) data pair. The seqno is set here to the initial value
+        # and incremented by the number of bytes in the current packet.
+        current_seqno = sn
+        self.filestream.seek(current_seqno*1458)
+        self.msg_window = [
+            [current_seqno, self.filestream.read(1458),False],
+            [current_seqno + 1, self.filestream.read(1458),False],
+            [current_seqno + 2, self.filestream.read(1458),False],
+            [current_seqno + 3, self.filestream.read(1458),False],
+            [current_seqno + 4, self.filestream.read(1458),False]]
+
+    def update_sliding_window(self, sn):
+        current_seqno = sn
+        self.filestream.seek(current_seqno*1458)
+        next_packet = self.filestream.read(1458)
+        print(os.path.getsize(filename))
+        print(os.path.getsize(filename) - current_seqno*1458)
+        if (os.path.getsize(filename) - current_seqno*1458) < 1458:
+            self.msg_window = [
+                [current_seqno, next_packet,False]]
+        else:
+            self.msg_window = [
+                [current_seqno, next_packet,False],
+                [current_seqno + 1, self.filestream.read(1458),False],
+                [current_seqno + 2, self.filestream.read(1458),False],
+                [current_seqno + 3, self.filestream.read(1458),False],
+                [current_seqno + 4, self.filestream.read(1458),False]]
+        pass
+
+    def send_next_data(self):
+        # If there is still data unsent
+        if len(self.msg_window) > 0:
+            # Check for unsent packets
+            packet_to_send = False
+            i = 0
+            while (not packet_to_send) and (i < len(self.msg_window)):
+                if not self.msg_window[i][2]:
+                    packet_to_send = True
+                else:
+                    i += 1
+            # If there is a packet to send, send it
+            if packet_to_send:
+                self.send(self.make_packet('start', self.msg_window[i][0], self.msg_window[i][1]),
+                      (self.dest, self.dport))
+                # Set the sent flag for that packet in the sliding window
+                self.msg_window[i][2] = True
+        else:
+            # End the connection
+            pass
+
+    # Handle an 'ack' reply from the server
+    def _handle_ack(self, seqno, data):
+        # If the seqno matches one of the packets in the sliding window
+        temp_packet = [x for x in self.msg_window if (seqno-1) in x]
+        if len(temp_packet) > 0:
+            temp_index = self.msg_window.index(temp_packet[0])
+            # If the packet has been sent previously
+            if self.msg_window[temp_index][2]:
+                # Remove the packet from the sliding window list
+                del self.msg_window[temp_index]
+                # Refresh the sliding window
+                self.update_sliding_window(seqno)
+
+            #Send the next packet of data!
+            self.send_next_data()
+
+        else:
+            # if the seqno doesn't match anything in the sliding window, ignore it.
+            pass
+
+    # handler for packets with unrecognized type
+    def _handle_other(self, seqno, data):
+        # Not sure if anything should go here... Just ignore them... it'll be fine... I think...
         pass
 
 
