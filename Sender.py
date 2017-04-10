@@ -121,14 +121,14 @@ class Sender(BasicSender.BasicSender):
         current_seqno = sn
         self.filestream.seek(0)
         self.msg_window = [[current_seqno, self.filestream.read(1458),False],]
-        if sys.getsizeof(self.msg_window[0][1]) == 1458
+        if sys.getsizeof(self.msg_window[0][1]) == 1458:
             for var in list(range(5)):
                 packet_size = sys.getsizeof(self.msg_window[var][1])
                 current_seqno += packet_size
                 self.msg_window.append([current_seqno, self.filestream.read(1458),False])
         else:
             # If the file is super small, may need to append an 'end' packet
-            packet_size = sys.getsizeof(self.msg_window[var][1])
+            packet_size = sys.getsizeof(self.msg_window[0][1])
             current_seqno += packet_size
             self.msg_window.append([current_seqno, '',False]) # 'end' packet
 
