@@ -94,3 +94,5 @@ workspace.xml
 .idea/workspace.xml
 Crono.jpg
 out_test.txt
+*.xml
+.idea/workspace.xml
