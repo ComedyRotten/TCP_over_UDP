@@ -1,6 +1,6 @@
 import getopt
-import sys
 import os
+import sys
 from random import randint
 
 import BasicSender
@@ -12,6 +12,7 @@ class Sender(BasicSender.BasicSender):
     def __init__(self, dest, port, filename, listenport=33122, debug=False, timeout=10):
         super().__init__(dest, port, filename, debug)
         self.rtimeout = timeout
+        self.filename = filename
         self.MESSAGE_HANDLER = {
             'ack': self._handle_ack
         }
@@ -42,9 +43,14 @@ class Sender(BasicSender.BasicSender):
         # load the file into the two-dimensional list
         # Initialize another 2D list to act as the sliding window.
         # May be worth implementing the resilient Receiver that accepts packets out of order (fairly easy?)
-        self.filestream = open(filename, 'rb')
-        self.initial_sequence_number = randint(0, 65535)
-        self.load_file(self.initial_sequence_number)
+        # self.filename = 'Crono.jpg'
+        # self.filestream = open(filename, 'rb')
+        # self.filesize = self.filestream.__sizeof__()
+        self.initial_sn = 10000  # randint(0, 65535)
+        self.current_sn = self.initial_sn
+        self.msg_window = []
+        self.filesize = 0
+        self.load_file()
 
         # State tracking variable:
         # 0: Transfer has not started
@@ -57,15 +63,17 @@ class Sender(BasicSender.BasicSender):
         while True:
             # state_options[self.current_state]()
             try:
-                print("Current State: {0}".format(self.current_state))
+                # print("Current State: {0}".format(self.current_state))
                 if self.current_state == 0:
-                    print("Sending start packet: data size: {0}".format(sys.getsizeof(self.msg_window[0][1])))
+                    # print("Sending start packet: data size: {0}  seqno: {1}".format(len(self.msg_window[0][1]),
+                    #                                                                self.msg_window[0][0]))
                     # Send initial start message
+                    # msgtype|seqno|data|checksum
                     self.send(self.make_packet('start', self.msg_window[0][0], self.msg_window[0][1]),
                               (self.dest, self.dport))
                     self.msg_window[0][2] = True
                 elif self.current_state == 1:
-                    # Send normal data
+                    # Send unacknowledged packets
                     self.send_next_data()
                 elif self.current_state == 2:
                     # Send the end packet last
@@ -83,16 +91,16 @@ class Sender(BasicSender.BasicSender):
                 if message:
                     # Split the received packet up into it's individual parts
                     msg_type, seqno, data, checksum = self.split_packet(message)
-                    print('Received message: mt: {0} sn: {1} d: {2} d(B): {3} c: {4}'.format(msg_type, seqno, data,
-                                                                                             sys.getsizeof(data),
-                                                                                             checksum))
+                    # print('Received message: mt: {0} sn: {1} d: {2} d(B): {3} c: {4}'.format(msg_type, seqno, data,
+                    #                                                                          len(data),
+                    #                                                                          checksum))
 
                     # Try and handle the message depending on it's type
-                    try:
-                        # Convert the string into an int.
-                        seqno = int(seqno)
-                    except:
-                        raise ValueError
+                    # try:
+                    #     # Convert the string into an int.
+                    #     seqno = int(seqno)
+                    # except:
+                    #     raise ValueError
 
                     # If the message contains no errors
                     if Checksum.validate_checksum(message):
@@ -100,6 +108,9 @@ class Sender(BasicSender.BasicSender):
                         self.MESSAGE_HANDLER.get(msg_type, self._handle_other)(seqno, data)
                     elif self.debug:
                         print("checksum failed: %s" % message)
+                else:
+                    pass
+                    # print("No message received???")
             except (KeyboardInterrupt, SystemExit):
                 exit()
             except ValueError as e:
@@ -112,43 +123,49 @@ class Sender(BasicSender.BasicSender):
     def increment_state(self):
         self.current_state += 1
 
-    def load_file(self, sn):
+    def load_file(self):
         # Read in a file and split the input file into data chunks and return data chunks.
         # The file is converted to a bytestream that reads in the file, either reading in only what is necessary and
         # putting that into the msg_window, or reading in the entire file into a 2D list where each element represents
         # a (data (bytearray), seqno (int), sent (bool)) data pair. The seqno is set here to the initial value
         # and incremented by the number of bytes in the current packet.
-        current_seqno = sn
-        self.filestream.seek(0)
-        self.msg_window = [[current_seqno, self.filestream.read(1458),False],]
-        if sys.getsizeof(self.msg_window[0][1]) == 1458:
-            for var in list(range(5)):
-                packet_size = sys.getsizeof(self.msg_window[var][1])
-                current_seqno += packet_size
-                self.msg_window.append([current_seqno, self.filestream.read(1458),False])
-        else:
-            # If the file is super small, may need to append an 'end' packet
-            packet_size = sys.getsizeof(self.msg_window[0][1])
-            current_seqno += packet_size
-            self.msg_window.append([current_seqno, '',False]) # 'end' packet
 
-    def update_sliding_window(self, sn):
-        current_seqno = sn
-        self.filestream.seek(current_seqno)
-        next_packet = self.filestream.read(1458)
-        print(os.path.getsize(filename))
-        print(os.path.getsize(filename) - current_seqno)
-        if (os.path.getsize(filename) - current_seqno) < 1458:
-            self.msg_window = [
-                [current_seqno, next_packet,False]]
-        else:
-            self.msg_window = [
-                [current_seqno, next_packet,False],
-                [current_seqno + 1, self.filestream.read(1458),False],
-                [current_seqno + 2, self.filestream.read(1458),False],
-                [current_seqno + 3, self.filestream.read(1458),False],
-                [current_seqno + 4, self.filestream.read(1458),False]]
-            
+        # create the first packet, reset the initial sn so that things are in order from now on
+        self.msg_window.append([self.current_sn, self.filename.encode('utf-8'), False])
+        self.initial_sn += len(self.filename.encode('utf-8'))
+        self.current_sn = self.initial_sn
+
+        with open(self.filename, 'rb') as sending_file:
+            self.filesize = os.stat(self.filename).st_size
+
+            # if the window is not full, and there is still more data in the file to retrieve
+            while ((self.msg_window.__len__() < 5) and (self.filesize > (self.current_sn - self.initial_sn))):
+                sending_file.seek(self.current_sn - self.initial_sn)
+                next_packet = sending_file.read(1458)
+                self.msg_window.append([self.current_sn, next_packet, False])
+                self.current_sn += len(next_packet)
+    
+            if self.msg_window.__len__() < 5:
+                # If the file is super small, may need to append an 'end' packet in this step
+                packet_size = len(self.msg_window[self.msg_window.__len__() - 1][1])
+                self.current_sn += packet_size
+                self.msg_window.append([self.current_sn, '',False]) # 'end' packet
+
+    def update_sliding_window(self):
+        with open(self.filename, 'rb') as sending_file:
+            # check to see if the window is full
+            if self.msg_window.__len__() < 5:
+                # if the window is not full, and there is still more data in the file to retrieve
+                while ((self.msg_window.__len__() < 5) and
+                           (self.filesize > (self.current_sn - self.initial_sn))):
+                    sending_file.seek(self.current_sn - self.initial_sn)
+                    next_packet = sending_file.read(1458)
+                    self.msg_window.append([self.current_sn, next_packet, False])
+                    self.current_sn += len(next_packet)
+            else:
+                # If the window does not need updated, keep running...
+                pass
+
         # Check to see if this is the first packet (start)
         if self.current_state == 0:
             self.increment_state()
@@ -160,14 +177,19 @@ class Sender(BasicSender.BasicSender):
     '''
     Attempt to send the selected data packet from the sliding window and mark it as sent.
     '''
-    def send_data(self, index):
+    def resend_data(self):
         try:
-            # If there is a packet to send, send it
-            if self.msg_window[index]:
-                self.send(self.make_packet('data', self.msg_window[index][0], self.msg_window[index][1]),
-                          (self.dest, self.dport))
-                # Set the sent flag for that packet in the sliding window
-                self.msg_window[index][2] = True
+            i = 0
+            while (i < len(self.msg_window)):
+                # If there is a packet to send, send it
+                if self.msg_window[i]:
+                    self.send(self.make_packet('data', self.msg_window[i][0], self.msg_window[i][1]),
+                              (self.dest, self.dport))
+                    # Set the sent flag for that packet in the sliding window
+                    self.msg_window[i][2] = True
+                    # print("Sending message: type: {0} seqno: {1} bytes: {2}".format('data', self.msg_window[i][0],
+                    #                                                                 len(self.msg_window[i][1])))
+                i += 1
         except:
             pass
 
@@ -185,13 +207,17 @@ class Sender(BasicSender.BasicSender):
                     packet_to_send = True
                 else:
                     i += 1
-            # If there is a packet to send, send it
+
+            # If there are packets to send, start with the previous unsent packets and send them
             if packet_to_send:
-                print("Sending data packet: data size: {0} seqno: {1}".format(sys.getsizeof(self.msg_window[i][1]), self.msg_window[i][0]))
-                self.send(self.make_packet('data', self.msg_window[i][0], self.msg_window[i][1]),
-                      (self.dest, self.dport))
-                # Set the sent flag for that packet in the sliding window
-                self.msg_window[i][2] = True
+                while (i < len(self.msg_window)):
+                    self.send(self.make_packet('data', self.msg_window[i][0], self.msg_window[i][1]),
+                              (self.dest, self.dport))
+                    # Set the sent flag for that packet in the sliding window
+                    self.msg_window[i][2] = True
+                    # print("Sending message: type: {0} seqno: {1} bytes: {2}".format('data', self.msg_window[i][0],
+                    #                                                                 len(self.msg_window[i][1])))
+                    i += 1
         pass
 
     '''
@@ -206,7 +232,8 @@ class Sender(BasicSender.BasicSender):
         temp_index = 0
 
         for index in list(range(self.msg_window.__len__())):
-            if seqno - sys.getsizeof(self.msg_window[index][1]) == self.msg_window[index][0]:
+            # if seqno - len(self.msg_window[index][1]) == self.msg_window[index][0]:
+            if seqno == self.msg_window[index][0]:
                 temp_packet = self.msg_window[index]
                 temp_index = index
                 break
@@ -214,6 +241,7 @@ class Sender(BasicSender.BasicSender):
         if len(temp_packet) > 0:
             # If the packet has been sent previously, accept it
             if self.msg_window[temp_index][2]:
+                # tempseqno = self.msg_window[temp_index][0]
                 # Remove the packet from the sliding window list
                 del self.msg_window[temp_index]
                 # Refresh the sliding window
