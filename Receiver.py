@@ -5,36 +5,47 @@ import time
 
 import Checksum
 
+'''
+Modified Receiver
+Editors: Reuben Sonnenberg and Devon Olson
+The "ack" and "handle..." methods were modified most.
+'''
 
 class Connection():
-    def __init__(self,host,port,start_seq,debug=False):
+    def __init__(self,host,port,start_seq,filename,debug=False):
         self.debug = debug
         self.updated = time.time()
-        self.current_seqno = start_seq - 1 # expect to ack from the start_seqno
+        self.current_seqno = start_seq # expect to ack from the start_seqno
         self.host = host
         self.port = port
         self.max_buf_size = 5
-        self.outfile = open("%s.%d" % (host,port),"w")
+        self.outfile = open("out_{0}".format(filename),"wb")
         self.seqnums = {} # enforce single instance of each seqno
 
     def ack(self,seqno, data):
         res_data = []
         self.updated = time.time()
-        if seqno > self.current_seqno and seqno <= self.current_seqno + self.max_buf_size:
+        # if the sequence number of the received packet is larger than the current sequence number and
+        # the window size is not exceeded
+        if (seqno == self.current_seqno) and self.seqnums.__len__() <= self.max_buf_size:
+            # Add the data to the window with the sequence number as the lookup value
             self.seqnums[seqno] = data
+            # Then, for every sequence number
             for n in sorted(self.seqnums.keys()):
-                if n == self.current_seqno + 1:
-                    self.current_seqno += 1
+                # If the sequence number is equal to the one we need
+                if n == self.current_seqno:
+                    # "Receive" and rebuild the data and remove if from the window
+                    self.current_seqno += len(data)
                     res_data.append(self.seqnums[n])
                     del self.seqnums[n]
                 else:
                     break # when we find out of order seqno, quit and move on
 
         if self.debug:
-            print("next seqno should be %d" % (self.current_seqno + 1))
+            print("next seqno should be %d" % (self.current_seqno))
 
-        # note: we return the /next/ sequence number we're expecting
-        return self.current_seqno+1, res_data
+        # note: we return the sequence number of the last packet received
+        return (self.current_seqno - len(data)), res_data
 
     def record(self,data):
         self.outfile.write(data)
@@ -69,13 +80,8 @@ class Receiver():
                 message, address = self.receive()
                 # Split the message up into it's appropriate parts
                 msg_type, seqno, data, checksum = self._split_message(message)
-                # Try and handle the message depending on it's type
-                try:
-                    seqno = int(seqno)
-                except:
-                    raise ValueError
-                if not debug:
-                    print('Split message: {0} {1} {2} {3}'.format(msg_type, seqno, data, checksum))
+                if debug:
+                    print('Received message: {0} {1} {2} {3} {4}'.format(msg_type, seqno, data, sys.getsizeof(data), checksum))
                 if Checksum.validate_checksum(message):
                     # If the checksum checks out, handle the message using one of the following methods defined by the
                     # MESSAGE_HANDLER dictionary.
@@ -102,31 +108,28 @@ class Receiver():
     # sends a message to the specified address. Addresses are in the format:
     #   (IP address, port number)
     def send(self, message, address):
-        self.s.sendto(message.encode(), address)
+        self.s.sendto(message, address)
 
     # this sends an ack message to address with specified seqno
     def _send_ack(self, seqno, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
-        m = "ack|%d|" % seqno
+        m = b"".join([b'ack|', bytes(str(seqno).encode()), b'|'])
         checksum = Checksum.generate_checksum(m)
-        message = "%s%s" % (m, checksum)
+        #message = "%s%s" % (m, checksum)
+        message = m + checksum
         self.send(message, address)
 
     def _handle_start(self, seqno, data, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if not address in self.connections:
-            self.connections[address] = Connection(address[0],address[1],seqno,self.debug)
+            self.connections[address] = Connection(address[0],address[1],seqno,data.decode(),self.debug)
         conn = self.connections[address]
         ackno, res_data = conn.ack(seqno,data)
         for l in res_data:
             if self.debug:
                 print(data)
-            conn.record(l)
         self._send_ack(ackno, address)
 
     # ignore packets from uninitiated connections
     def _handle_data(self, seqno, data, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if address in self.connections:
             conn = self.connections[address]
             ackno,res_data = conn.ack(seqno,data)
@@ -138,7 +141,6 @@ class Receiver():
 
     # handle end packets
     def _handle_end(self, seqno, data, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         if address in self.connections:
             conn = self.connections[address]
             ackno, res_data = conn.ack(seqno,data)
@@ -150,27 +152,24 @@ class Receiver():
 
     # I'll do the ack-ing here, buddy
     def _handle_ack(self, seqno, data, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     # handler for packets with unrecognized type
     def _handle_other(self, seqno, data, address):
-        print("start received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     def _split_message(self, message):
-        print("Splitting message")
-        pieces = message.decode().split('|')
-        msg_type, seqno = pieces[0:2] # first two elements always treated as msg type and seqno
-        checksum = pieces[-1] # last is always treated as checksum
-        data = '|'.join(pieces[2:-1]) # everything in between is considered data
-        return msg_type, seqno, data, checksum
+        pieces = message.split(b'|')
+        msg_type, seqno = pieces[0:2]  # first two elements always treated as msg type and seqno
+        checksum = pieces[-1]  # last is always treated as checksum
+        data = b'|'.join(pieces[2:-1])  # everything in between is considered data
+        return msg_type.decode(), int(seqno), data, checksum
 
     def _cleanup(self):
         if self.debug:
             print("clean up time")
         now = time.time()
-        for address in self.connections.keys():
+        for address in list(self.connections):
             conn = self.connections[address]
             if now - conn.updated > self.timeout:
                 if self.debug:

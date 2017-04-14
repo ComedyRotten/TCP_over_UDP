@@ -87,3 +87,12 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Custom files
+workspace.xml
+.idea/
+.idea/workspace.xml
+Crono.jpg
+out_test.txt
+*.xml
+.idea/workspace.xml
