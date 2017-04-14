@@ -5,6 +5,11 @@ import time
 
 import Checksum
 
+'''
+Modified Receiver
+Editors: Reuben Sonnenberg and Devon Olson
+The "ack" and "handle..." methods were modified most.
+'''
 
 class Connection():
     def __init__(self,host,port,start_seq,filename,debug=False):
@@ -75,11 +80,6 @@ class Receiver():
                 message, address = self.receive()
                 # Split the message up into it's appropriate parts
                 msg_type, seqno, data, checksum = self._split_message(message)
-                # Try and handle the message depending on it's type
-                # try:
-                #     seqno = int(seqno)
-                # except:
-                #     raise ValueError
                 if debug:
                     print('Received message: {0} {1} {2} {3} {4}'.format(msg_type, seqno, data, sys.getsizeof(data), checksum))
                 if Checksum.validate_checksum(message):
@@ -112,8 +112,6 @@ class Receiver():
 
     # this sends an ack message to address with specified seqno
     def _send_ack(self, seqno, address):
-        # print("sending ack: seqno: {0}  address: {1}".format(seqno, address))
-        #m = "ack|%d|" % seqno
         m = b"".join([b'ack|', bytes(str(seqno).encode()), b'|'])
         checksum = Checksum.generate_checksum(m)
         #message = "%s%s" % (m, checksum)
@@ -121,7 +119,6 @@ class Receiver():
         self.send(message, address)
 
     def _handle_start(self, seqno, data, address):
-        # print("\nhandle start: seqno: {0} data(bytes): {1} address: {2}".format(seqno, len(data), address))
         if not address in self.connections:
             self.connections[address] = Connection(address[0],address[1],seqno,data.decode(),self.debug)
         conn = self.connections[address]
@@ -129,12 +126,10 @@ class Receiver():
         for l in res_data:
             if self.debug:
                 print(data)
-            # conn.record(l) # Do not write the start packet, which only contains the filename
         self._send_ack(ackno, address)
 
     # ignore packets from uninitiated connections
     def _handle_data(self, seqno, data, address):
-        # print("\ndata received: seqno: {0} data(bytes): {1} address: {2}".format(seqno, len(data), address))
         if address in self.connections:
             conn = self.connections[address]
             ackno,res_data = conn.ack(seqno,data)
@@ -146,7 +141,6 @@ class Receiver():
 
     # handle end packets
     def _handle_end(self, seqno, data, address):
-        # print("\nend received: seqno: {0}  address: {1}".format(seqno, address))
         if address in self.connections:
             conn = self.connections[address]
             ackno, res_data = conn.ack(seqno,data)
@@ -158,12 +152,10 @@ class Receiver():
 
     # I'll do the ack-ing here, buddy
     def _handle_ack(self, seqno, data, address):
-        # print("ack received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     # handler for packets with unrecognized type
     def _handle_other(self, seqno, data, address):
-        # print("other received: seqno: {0}  address: {1}".format(seqno, address))
         pass
 
     def _split_message(self, message):

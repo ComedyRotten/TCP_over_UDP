@@ -1,5 +1,10 @@
 import binascii
 
+'''
+Modified Checksum
+Editors: Reuben Sonnenberg and Devon Olson
+'''
+
 # Assumes last field is the checksum!
 def validate_checksum(message):
     try:

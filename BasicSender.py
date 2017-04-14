@@ -5,6 +5,8 @@ import sys
 import Checksum
 
 '''
+Modified Basic Sender
+Editors: Reuben Sonnenberg and Devon Olson
 This is the basic sender class. Your sender will extend this class and will
 implement the start() method.
 '''

@@ -6,6 +6,10 @@ from random import randint
 import BasicSender
 import Checksum
 
+'''
+Extended Sender
+Editors: Reuben Sonnenberg and Devon Olson
+'''
 
 class Sender(BasicSender.BasicSender):
 
@@ -39,14 +43,7 @@ class Sender(BasicSender.BasicSender):
     '''
     def start(self):
         # The initial seqno is set to a random a 16-bit int (2 bytes).
-
-        # load the file into the two-dimensional list
-        # Initialize another 2D list to act as the sliding window.
-        # May be worth implementing the resilient Receiver that accepts packets out of order (fairly easy?)
-        # self.filename = 'Crono.jpg'
-        # self.filestream = open(filename, 'rb')
-        # self.filesize = self.filestream.__sizeof__()
-        self.initial_sn = 10000  # randint(0, 65535)
+        self.initial_sn = randint(0, 65535)
         self.current_sn = self.initial_sn
         self.msg_window = []
         self.filesize = 0
@@ -63,10 +60,7 @@ class Sender(BasicSender.BasicSender):
         while True:
             # state_options[self.current_state]()
             try:
-                # print("Current State: {0}".format(self.current_state))
                 if self.current_state == 0:
-                    # print("Sending start packet: data size: {0}  seqno: {1}".format(len(self.msg_window[0][1]),
-                    #                                                                self.msg_window[0][0]))
                     # Send initial start message
                     # msgtype|seqno|data|checksum
                     self.send(self.make_packet('start', self.msg_window[0][0], self.msg_window[0][1]),
@@ -91,17 +85,6 @@ class Sender(BasicSender.BasicSender):
                 if message:
                     # Split the received packet up into it's individual parts
                     msg_type, seqno, data, checksum = self.split_packet(message)
-                    # print('Received message: mt: {0} sn: {1} d: {2} d(B): {3} c: {4}'.format(msg_type, seqno, data,
-                    #                                                                          len(data),
-                    #                                                                          checksum))
-
-                    # Try and handle the message depending on it's type
-                    # try:
-                    #     # Convert the string into an int.
-                    #     seqno = int(seqno)
-                    # except:
-                    #     raise ValueError
-
                     # If the message contains no errors
                     if Checksum.validate_checksum(message):
                         # Handle the message using one of the methods defined by the MESSAGE_HANDLER dictionary.
@@ -110,7 +93,6 @@ class Sender(BasicSender.BasicSender):
                         print("checksum failed: %s" % message)
                 else:
                     pass
-                    # print("No message received???")
             except (KeyboardInterrupt, SystemExit):
                 exit()
             except ValueError as e:
@@ -187,8 +169,6 @@ class Sender(BasicSender.BasicSender):
                               (self.dest, self.dport))
                     # Set the sent flag for that packet in the sliding window
                     self.msg_window[i][2] = True
-                    # print("Sending message: type: {0} seqno: {1} bytes: {2}".format('data', self.msg_window[i][0],
-                    #                                                                 len(self.msg_window[i][1])))
                 i += 1
         except:
             pass
@@ -215,8 +195,6 @@ class Sender(BasicSender.BasicSender):
                               (self.dest, self.dport))
                     # Set the sent flag for that packet in the sliding window
                     self.msg_window[i][2] = True
-                    # print("Sending message: type: {0} seqno: {1} bytes: {2}".format('data', self.msg_window[i][0],
-                    #                                                                 len(self.msg_window[i][1])))
                     i += 1
         pass
 
@@ -232,7 +210,6 @@ class Sender(BasicSender.BasicSender):
         temp_index = 0
 
         for index in list(range(self.msg_window.__len__())):
-            # if seqno - len(self.msg_window[index][1]) == self.msg_window[index][0]:
             if seqno == self.msg_window[index][0]:
                 temp_packet = self.msg_window[index]
                 temp_index = index
@@ -241,7 +218,6 @@ class Sender(BasicSender.BasicSender):
         if len(temp_packet) > 0:
             # If the packet has been sent previously, accept it
             if self.msg_window[temp_index][2]:
-                # tempseqno = self.msg_window[temp_index][0]
                 # Remove the packet from the sliding window list
                 del self.msg_window[temp_index]
                 # Refresh the sliding window
